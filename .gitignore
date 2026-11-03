@@ -41,3 +41,14 @@ example
 # generated native folders
 /ios
 /android
+
+# Playwright MCP output
+.playwright-mcp/
+
+# Firebase CLI
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# EAS iOS simulator builds
+ios-builds/

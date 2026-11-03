@@ -1,0 +1,162 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The profile from setup: users/{uid}. Deleting it (Settings → Delete all data) restarts setup.
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidProfile(request.resource.data);
+    }
+
+    // Transactions. The collection keeps its original name so existing data still loads.
+    match /users/{uid}/expenses/{txId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidTransaction(request.resource.data);
+    }
+
+    // Savings goals.
+    match /users/{uid}/goals/{goalId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidGoal(request.resource.data);
+    }
+
+    // Bills and subscriptions.
+    match /users/{uid}/bills/{billId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidBill(request.resource.data);
+    }
+
+    // Money lent and borrowed.
+    match /users/{uid}/loans/{loanId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidLoan(request.resource.data);
+    }
+
+    // Shopping lists (items are stored inside the list).
+    match /users/{uid}/lists/{listId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidList(request.resource.data);
+    }
+
+    // Spending plans for trips and events.
+    match /users/{uid}/plans/{planId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidPlan(request.resource.data);
+    }
+
+    // How each month's income above the budget was assigned: users/{uid}/months/{YYYY-MM}.
+    match /users/{uid}/months/{monthId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && monthId.matches('^[0-9]{4}-[0-9]{2}$') && isValidMonth(request.resource.data);
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isAmountOrNull(v) {
+      return v == null || (v is number && v > 0 && v <= 100000000);
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasOnly(['name', 'age', 'status', 'incomeEnabled', 'income', 'incomeFrequency', 'payday', 'monthlyBudget', 'currency', 'theme', 'catBudgets', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 40
+        // Profiles from the first version have an age and none of the newer fields.
+        && (!('age' in data) || (data.age is int && data.age >= 1 && data.age <= 120))
+        && (!('status' in data) || data.status in ['student', 'employee', 'self', 'other'])
+        && (!('incomeEnabled' in data) || data.incomeEnabled is bool)
+        && isAmountOrNull(data.get('income', null))
+        && (!('incomeFrequency' in data) || data.incomeFrequency in ['monthly', 'few', 'weekly', 'irregular'])
+        && (data.get('payday', null) == null || (data.payday is int && data.payday >= 1 && data.payday <= 31))
+        && isAmountOrNull(data.get('monthlyBudget', null))
+        && (!('currency' in data) || (data.currency is string && data.currency.size() <= 4))
+        && (!('theme' in data) || data.theme in ['system', 'light', 'dark'])
+        && (!('catBudgets' in data) || (data.catBudgets is map
+          && data.catBudgets.keys().hasOnly(['food', 'transport', 'study', 'bills', 'shopping', 'fun', 'health', 'other'])))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasOnly(['type', 'amount', 'category', 'note', 'date', 'planId', 'loanId', 'createdAt'])
+        && (!('type' in data) || data.type in ['expense', 'income'])
+        && data.amount is number && data.amount > 0 && data.amount < 100000000
+        && data.category in ['food', 'transport', 'study', 'bills', 'shopping', 'fun', 'health', 'other',
+                             'allowance', 'salary', 'freelance', 'gift', 'otherinc']
+        && data.note is string && data.note.size() <= 80
+        && data.date is timestamp
+        && (!('planId' in data) || (data.planId is string && data.planId.size() <= 40))
+        && (!('loanId' in data) || (data.loanId is string && data.loanId.size() <= 40))
+        && data.createdAt is timestamp;
+    }
+
+    function isName(v) {
+      return v is string && v.size() > 0 && v.size() <= 40;
+    }
+
+    function isAmount(v) {
+      return v is number && v > 0 && v <= 100000000;
+    }
+
+    function isValidBill(data) {
+      return data.keys().hasOnly(['name', 'amount', 'category', 'kind', 'cycle', 'nextDue', 'anchor', 'remind', 'createdAt'])
+        && isName(data.name)
+        && isAmount(data.amount)
+        && data.category in ['food', 'transport', 'study', 'bills', 'shopping', 'fun', 'health', 'other']
+        && data.kind in ['bill', 'subscription']
+        && data.cycle in ['weekly', 'monthly', 'yearly']
+        && data.nextDue is timestamp
+        && data.anchor is int && data.anchor >= 1 && data.anchor <= 31
+        && data.remind is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidLoan(data) {
+      return data.keys().hasOnly(['person', 'direction', 'amount', 'paid', 'due', 'note', 'remind', 'months', 'installment', 'createdAt'])
+        && isName(data.person)
+        && data.direction in ['lent', 'borrowed']
+        && isAmount(data.amount)
+        && data.paid is number && data.paid >= 0 && data.paid <= 1000000000
+        && (data.due == null || data.due is timestamp)
+        && data.note is string && data.note.size() <= 80
+        && data.remind is bool
+        && (data.get('months', null) == null || (data.months is int && data.months >= 1 && data.months <= 120))
+        && isAmountOrNull(data.get('installment', null))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMonth(data) {
+      return data.keys().hasOnly(['spend', 'saved', 'tipDismissed', 'updatedAt'])
+        && (!('spend' in data) || (data.spend is number && data.spend >= 0 && data.spend <= 1000000000))
+        && (!('saved' in data) || (data.saved is number && data.saved >= 0 && data.saved <= 1000000000))
+        && (!('tipDismissed' in data) || data.tipDismissed is bool)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidList(data) {
+      return data.keys().hasOnly(['name', 'budget', 'items', 'createdAt'])
+        && isName(data.name)
+        && isAmountOrNull(data.budget)
+        && data.items is list && data.items.size() <= 100
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPlan(data) {
+      return data.keys().hasOnly(['name', 'icon', 'budget', 'start', 'end', 'createdAt'])
+        && isName(data.name)
+        && data.icon is string && data.icon.size() <= 20
+        && isAmount(data.budget)
+        && data.start is timestamp
+        && (data.end == null || data.end is timestamp)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasOnly(['name', 'icon', 'target', 'saved', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 40
+        && data.icon is string && data.icon.size() <= 20
+        && data.target is number && data.target > 0 && data.target <= 100000000
+        && data.saved is number && data.saved >= 0 && data.saved <= 1000000000
+        && data.createdAt is timestamp;
+    }
+  }
+}
