@@ -79,7 +79,7 @@ function AmountInput({ value, onSave, label, placeholder = 'None' }: { value: nu
       <Txt variant="caption" color="ink3">
         {p.currency}
       </Txt>
-      <TextInput
+      <TextInput maxFontSizeMultiplier={1.2}
         value={text}
         onChangeText={(t) => setText(digitsOnly(t))}
         onEndEditing={() => {
@@ -171,7 +171,7 @@ export default function Settings() {
             icon="user"
             label="Name"
             right={
-              <TextInput
+              <TextInput maxFontSizeMultiplier={1.2}
                 value={name}
                 onChangeText={setName}
                 onEndEditing={() => {

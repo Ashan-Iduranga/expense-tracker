@@ -4,10 +4,11 @@ import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
+import { LoadingSplash } from '@/components/loading-splash';
 import { ToastView } from '@/components/toast-view';
 import { AccountProvider, useAccount } from '@/data/account';
 import { BillsProvider, useBills } from '@/data/bills';
@@ -63,16 +64,22 @@ export default function RootLayout() {
 /** Onboarding and setup until the user has a profile (and has seen the setup checklist), then the app. */
 function RootStack({ fontsReady }: { fontsReady: boolean }) {
   const { profile, status, finishingSetup } = useAccount();
-  const c = useColors();
   const ready = fontsReady && status !== 'loading';
   const needsSetup = status === 'ready' && (!profile || finishingSetup);
+  const [splashDone, setSplashDone] = useState(false);
+  const endSplash = useCallback(() => setSplashDone(true), []);
 
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync();
-  }, [ready]);
+  return (
+    <>
+      {ready && <App needsSetup={needsSetup} showReminders={!needsSetup && status === 'ready'} />}
+      {/* Takes over from the native splash and covers the app until it's ready. Kept at one spot in the tree so it never restarts. */}
+      {!splashDone && <LoadingSplash ready={ready} onDone={endSplash} />}
+    </>
+  );
+}
 
-  if (!ready) return null;
-
+function App({ needsSetup, showReminders }: { needsSetup: boolean; showReminders: boolean }) {
+  const c = useColors();
   return (
     <>
       <StatusBar style={c.statusBar} />
@@ -99,7 +106,7 @@ function RootStack({ fontsReady }: { fontsReady: boolean }) {
           <Stack.Screen name="plan/[id]" options={{ animation: 'slide_from_right' }} />
         </Stack.Protected>
       </Stack>
-      {!needsSetup && status === 'ready' && <Reminders />}
+      {showReminders && <Reminders />}
       <ToastView />
     </>
   );

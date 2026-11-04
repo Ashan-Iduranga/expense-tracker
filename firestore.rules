@@ -98,7 +98,7 @@ service cloud.firestore {
     }
 
     function isValidBill(data) {
-      return data.keys().hasOnly(['name', 'amount', 'category', 'kind', 'cycle', 'nextDue', 'anchor', 'remind', 'createdAt'])
+      return data.keys().hasOnly(['name', 'amount', 'category', 'kind', 'cycle', 'nextDue', 'anchor', 'remind', 'lastPaid', 'createdAt'])
         && isName(data.name)
         && isAmount(data.amount)
         && data.category in ['food', 'transport', 'study', 'bills', 'shopping', 'fun', 'health', 'other']
@@ -107,6 +107,7 @@ service cloud.firestore {
         && data.nextDue is timestamp
         && data.anchor is int && data.anchor >= 1 && data.anchor <= 31
         && data.remind is bool
+        && (!('lastPaid' in data) || data.lastPaid is timestamp)
         && data.createdAt is timestamp;
     }
 

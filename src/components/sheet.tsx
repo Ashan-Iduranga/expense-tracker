@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -72,7 +73,11 @@ export function Sheet({ visible, onClose, title, headerExtra, children }: SheetP
   return (
     <Modal transparent visible onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent animationType="none">
       <GestureHandlerRootView style={styles.fill}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+        {/*
+          The keyboard-controller versions work inside a Modal on Android too. With edge-to-edge
+          nothing resizes the window, so the sheet has to lift itself, then scroll the field into view.
+        */}
+        <KeyboardAvoidingView behavior="padding" style={styles.fill}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }, backdropStyle]}>
             <Pressable style={styles.fill} onPress={onClose} aria-label="Close" />
           </Animated.View>
@@ -94,9 +99,9 @@ export function Sheet({ visible, onClose, title, headerExtra, children }: SheetP
                   </View>
                 </View>
               </GestureDetector>
-              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body} bounces={false}>
+              <KeyboardAwareScrollView bottomOffset={16} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body} bounces={false}>
                 {children}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Animated.View>
           </View>
         </KeyboardAvoidingView>

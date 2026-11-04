@@ -1,5 +1,5 @@
 /** Small form pieces shared by the bill, loan, list and plan sheets, in the goal sheet's style. */
-import { useState, type ReactNode } from 'react';
+import { useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 
@@ -19,9 +19,9 @@ export function FieldLabel({ children }: { children: ReactNode }) {
   );
 }
 
-export function TextField(props: TextInputProps) {
+export function TextField(props: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>> }) {
   const c = useColors();
-  return <TextInput placeholderTextColor={c.ink3} {...props} style={[styles.box, styles.text, { color: c.ink, backgroundColor: c.surface, borderColor: c.line2 }, props.style]} />;
+  return <TextInput placeholderTextColor={c.ink3} maxFontSizeMultiplier={1.3} {...props} style={[styles.box, styles.text, { color: c.ink, backgroundColor: c.surface, borderColor: c.line2 }, props.style]} />;
 }
 
 /** Whole-number money input with the currency in front. */
@@ -38,6 +38,7 @@ export function MoneyField({ value, onChange, currency, label, placeholder = '0'
         keyboardType="number-pad"
         placeholder={placeholder}
         placeholderTextColor={c.ink3}
+        maxFontSizeMultiplier={1.3}
         aria-label={label}
         style={[styles.text, { color: c.ink }]}
       />

@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -22,7 +22,7 @@ import { useColors } from '@/hooks/use-colors';
 
 const Words = ['Track', 'Budget', 'Save'];
 
-function Word({ text, on }: { text: string; on: boolean }) {
+function Word({ text, on, size }: { text: string; on: boolean; size: number }) {
   const c = useColors();
   const reduced = useReducedMotion();
   const p = useSharedValue(on ? 1 : 0);
@@ -34,7 +34,7 @@ function Word({ text, on }: { text: string; on: boolean }) {
   return (
     <Animated.View style={[styles.wordRow, a]}>
       <Animated.View style={[styles.wordDot, { backgroundColor: c.lime, borderColor: c.ink }, dot]} />
-      <Txt style={styles.word}>{`${text}.`}</Txt>
+      <Txt style={[styles.word, displayType(size), { marginBottom: -size * 0.2 }]}>{`${text}.`}</Txt>
     </Animated.View>
   );
 }
@@ -47,6 +47,10 @@ export default function Onboarding() {
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(false);
   const glow = useSharedValue(1);
+  // Sized from the screen height, so the button fits on short phones and with large
+  // display or font settings. If space is still short, the words block gives way first.
+  const { height } = useWindowDimensions();
+  const k = Math.min(1, Math.max(0.62, height / 820));
 
   // Loops for as long as the intro is on screen. Setup is pushed on top, so pause
   // while it's covered and pick up again if the user comes back.
@@ -87,14 +91,14 @@ export default function Onboarding() {
         </Pressable>
       </View>
 
-      <View style={styles.words} aria-label="Track, budget and save" accessible>
+      <View style={[styles.words, { marginTop: 34 * k }]} aria-label="Track, budget and save" accessible>
         {Words.map((w, i) => (
-          <Word key={w} text={w} on={i === active} />
+          <Word key={w} text={w} on={i === active} size={Math.round(92 * k)} />
         ))}
       </View>
 
       <View style={styles.low}>
-        <Txt style={styles.title} color={c.obTitle}>
+        <Txt style={[styles.title, displayType(Math.round(52 * k))]} color={c.obTitle}>
           {'Every rupee.\nOn your side.'}
         </Txt>
         <Txt variant="bodyMedium" color={c.obBody} style={{ maxWidth: 320 }}>
@@ -116,11 +120,11 @@ const styles = StyleSheet.create({
   glow: { position: 'absolute', left: '-30%', right: '-30%', bottom: '-12%', height: '62%' },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   skip: { minHeight: 40, paddingHorizontal: 16, borderRadius: Radius.pill, justifyContent: 'center' },
-  words: { marginTop: 34 },
+  words: { flexShrink: 1, minHeight: 0, overflow: 'hidden' },
   wordRow: { flexDirection: 'row', alignItems: 'center' },
   wordDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, marginRight: 12 },
   // A safe line box, pulled together with a negative margin to keep the tight stack.
-  word: { ...displayType(92), textTransform: 'uppercase', marginBottom: -18 },
-  low: { marginTop: 'auto', gap: 12 },
-  title: { ...displayType(52), textTransform: 'uppercase' },
+  word: { textTransform: 'uppercase' },
+  low: { marginTop: 'auto', gap: 12, paddingTop: 12 },
+  title: { textTransform: 'uppercase' },
 });

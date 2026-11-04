@@ -215,7 +215,7 @@ export default function Goals() {
               <Txt variant="bodySemi" color="ink3">
                 {p.currency}
               </Txt>
-              <TextInput
+              <TextInput maxFontSizeMultiplier={1.2}
                 value={amount}
                 onChangeText={(t) => setAmount(digitsOnly(t))}
                 keyboardType="number-pad"
@@ -254,7 +254,7 @@ export default function Goals() {
         <Txt variant="smallSemi" color="ink2">
           What are you saving for?
         </Txt>
-        <TextInput
+        <TextInput maxFontSizeMultiplier={1.2}
           value={name}
           onChangeText={(t) => {
             setName(t);
@@ -273,7 +273,7 @@ export default function Goals() {
           <Txt variant="bodySemi" color="ink3">
             {p.currency}
           </Txt>
-          <TextInput
+          <TextInput maxFontSizeMultiplier={1.2}
             value={target}
             onChangeText={(t) => {
               setTarget(digitsOnly(t));

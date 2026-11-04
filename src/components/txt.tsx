@@ -15,8 +15,14 @@ export type TxtProps = TextProps & {
 export function Txt({ variant = 'body', color = 'ink', style, ...rest }: TxtProps) {
   const c = useColors();
   const resolved = color in c ? (c[color as ColorKey] as string) : color;
-  return <Text {...rest} style={[styles[variant], { color: resolved }, style]} />;
+  return <Text maxFontSizeMultiplier={Big.has(variant) ? 1.15 : 1.3} {...rest} style={[styles[variant], { color: resolved }, style]} />;
 }
+
+/**
+ * Text still follows the phone's font size, but only so far: large display sizes on top of
+ * a big system font pushed buttons off-screen and made short pages scroll.
+ */
+const Big = new Set<string>(['display', 'title', 'name', 'num']);
 
 const styles = StyleSheet.create({
   /** Big condensed numbers. */

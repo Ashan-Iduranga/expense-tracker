@@ -271,7 +271,7 @@ export default function Add() {
 
         <View style={[styles.note, { backgroundColor: c.surface2 }]}>
           <Icon name="edit" size={18} color={c.ink3} />
-          <TextInput value={note} onChangeText={setNote} maxLength={60} placeholder={placeholder} placeholderTextColor={c.ink3} aria-label="Note" style={[styles.noteInput, { color: c.ink }]} />
+          <TextInput maxFontSizeMultiplier={1.2} value={note} onChangeText={setNote} maxLength={60} placeholder={placeholder} placeholderTextColor={c.ink3} aria-label="Note" style={[styles.noteInput, { color: c.ink }]} />
         </View>
 
         {type === 'expense' && planChoices.length > 0 && (

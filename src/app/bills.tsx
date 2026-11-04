@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState, type ComponentRef } from 'react';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Chip, IconButton, PrimaryButton, Segmented, Switch } from '@/components/controls';
@@ -13,7 +13,7 @@ import { Txt } from '@/components/txt';
 import { ListReflow, RowEnter, RowExit } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
 import { MaxAmount } from '@/data/account';
-import { useBills, type Bill, type BillKind, type NewBill } from '@/data/bills';
+import { isPaid, useBills, type Bill, type BillKind, type NewBill } from '@/data/bills';
 import { ExpenseCategories, ExpenseIds, type ExpenseCategory } from '@/data/categories';
 import { useToast } from '@/data/toast';
 import { useMonth } from '@/data/month';
@@ -24,8 +24,10 @@ import { hapticSuccess } from '@/lib/haptics';
 import { CycleIds, Cycles, daysUntil, dueLabel, monthlyCost, type Cycle } from '@/lib/recurring';
 import { ensurePermission } from '@/lib/reminders';
 
-/** Common charges, to fill the form in one tap. Plain names, no logos. */
-const Quick: { name: string; kind: BillKind; category: ExpenseCategory }[] = [
+/** Common charges, to fill the form in one tap. Plain names, no logos. A–Z, then "Other". */
+type QuickBill = { name: string; kind: BillKind; category: ExpenseCategory };
+const Quick = ([
+  { name: 'Apple Subscriptions', kind: 'subscription', category: 'fun' },
   { name: 'Netflix', kind: 'subscription', category: 'fun' },
   { name: 'Spotify', kind: 'subscription', category: 'fun' },
   { name: 'YouTube Premium', kind: 'subscription', category: 'fun' },
@@ -36,7 +38,7 @@ const Quick: { name: string; kind: BillKind; category: ExpenseCategory }[] = [
   { name: 'Rent', kind: 'bill', category: 'bills' },
   { name: 'Gym', kind: 'subscription', category: 'health' },
   { name: 'Bus pass', kind: 'bill', category: 'transport' },
-];
+] satisfies QuickBill[]).sort((a, b) => a.name.localeCompare(b.name)) as QuickBill[];
 
 type BillsView = 'upcoming' | 'all';
 
@@ -111,7 +113,7 @@ export default function Bills() {
           <EmptyState
             icon="repeat"
             title="No bills yet"
-            body="Add what comes round every week, month or year: reloads, internet, rent, Netflix. Tap Paid when it’s done and it goes into your spending."
+            body="Add what comes round every week, month or year: reloads, internet, rent, Netflix. Tap Pay when it’s done and it goes into your spending."
             action="Add a bill"
             onAction={() => setEditing('new')}
           />
@@ -157,11 +159,20 @@ function BillRow({ bill, currency, onPress, onPaid }: { bill: Bill; currency: st
           {bill.remind ? ' · Reminder on' : ''}
         </Txt>
       </View>
-      <PressableScale role="button" aria-label={`Mark ${bill.name} paid`} onPress={onPaid} style={[styles.paid, { backgroundColor: soon ? c.accent : c.surface2 }]}>
-        <Txt variant="smallBold" color={soon ? c.onAccent : c.ink}>
-          Paid
-        </Txt>
-      </PressableScale>
+      {isPaid(bill) ? (
+        <View aria-label={`${bill.name} paid`} style={[styles.paid, styles.paidOn, { backgroundColor: c.pos + '24' }]}>
+          <Icon name="check" size={15} color={c.posInk} strokeWidth={2.6} />
+          <Txt variant="smallBold" color={c.posInk}>
+            Paid
+          </Txt>
+        </View>
+      ) : (
+        <PressableScale role="button" aria-label={`Pay ${bill.name}`} onPress={onPaid} style={[styles.paid, { backgroundColor: c.negSoft }]}>
+          <Txt variant="smallBold" color={c.neg}>
+            Pay
+          </Txt>
+        </PressableScale>
+      )}
     </PressableScale>
   );
 }
@@ -183,6 +194,8 @@ function BillEditor({ bill, currency, onClose }: { bill: Bill | 'new' | null; cu
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [wasNew, setWasNew] = useState(true);
+  const [other, setOther] = useState(false);
+  const nameRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   // Reset the form whenever a different bill (or "new") is opened.
   const openKey = bill === null ? null : isNew ? 'new' : existing!.id;
@@ -200,6 +213,7 @@ function BillEditor({ bill, currency, onClose }: { bill: Bill | 'new' | null; cu
     setRemind(existing?.remind ?? false);
     setError('');
     setConfirmDelete(false);
+    setOther(false);
   }
 
   function save() {
@@ -255,8 +269,9 @@ function BillEditor({ bill, currency, onClose }: { bill: Bill | 'new' | null; cu
                 <Chip
                   key={q.name}
                   label={q.name}
-                  selected={name === q.name}
+                  selected={!other && name === q.name}
                   onPress={() => {
+                    setOther(false);
                     setName(q.name);
                     setKind(q.kind);
                     setCategory(q.category);
@@ -264,10 +279,22 @@ function BillEditor({ bill, currency, onClose }: { bill: Bill | 'new' | null; cu
                   }}
                 />
               ))}
+              <Chip
+                label="Other"
+                icon="plus"
+                selected={other}
+                onPress={() => {
+                  setOther(true);
+                  setName('');
+                  setCategory('other');
+                  setError('');
+                  nameRef.current?.focus();
+                }}
+              />
             </ScrollView>
           )}
           <FieldLabel>Name</FieldLabel>
-          <TextField value={name} onChangeText={(t) => { setName(t); setError(''); }} maxLength={40} placeholder="e.g. Internet" aria-label="Bill name" />
+          <TextField ref={nameRef} value={name} onChangeText={(t) => { setName(t); setError(''); }} maxLength={40} placeholder={other ? 'What is it?' : 'e.g. Internet'} aria-label="Bill name" />
           <FieldLabel>Amount each time</FieldLabel>
           <MoneyField value={amount} onChange={(v) => { setAmount(v); setError(''); }} currency={currency} label="Amount" />
           <Segmented<BillKind>
@@ -318,6 +345,7 @@ const styles = StyleSheet.create({
   splitTile: { flex: 1, padding: 10, borderRadius: 14, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: Radius.row },
   ic: { width: 42, height: 42, borderRadius: Radius.icon, alignItems: 'center', justifyContent: 'center' },
-  paid: { minHeight: 38, paddingHorizontal: 14, borderRadius: 99, justifyContent: 'center' },
+  paid: { minHeight: 38, minWidth: 64, paddingHorizontal: 14, borderRadius: 99, alignItems: 'center', justifyContent: 'center' },
+  paidOn: { flexDirection: 'row', gap: 4, paddingHorizontal: 12 },
   remind: { paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1 },
 });

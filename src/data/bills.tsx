@@ -1,4 +1,4 @@
-import { deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAccount } from '@/data/account';
@@ -7,7 +7,7 @@ import { clearCollection, reportFailure, toDate, userCollection } from '@/data/s
 import { useToast } from '@/data/toast';
 import { useTransactions } from '@/data/transactions';
 import { formatMoney } from '@/lib/format';
-import { advance, monthlyCost, type Cycle } from '@/lib/recurring';
+import { advance, daysUntil, monthlyCost, SoonDays, type Cycle } from '@/lib/recurring';
 
 export type BillKind = 'bill' | 'subscription';
 
@@ -22,9 +22,16 @@ export type Bill = {
   /** Day of the month it's due, so month-end bills don't drift. */
   anchor: number;
   remind: boolean;
+  /** When it was last marked paid. */
+  lastPaid?: Date;
 };
 
-export type NewBill = Omit<Bill, 'id' | 'anchor'>;
+export type NewBill = Omit<Bill, 'id' | 'anchor' | 'lastPaid'>;
+
+/** Paid for this round: stays paid until the next due date is close again. */
+export function isPaid(bill: Bill, now = new Date()) {
+  return !!bill.lastPaid && daysUntil(bill.nextDue, now) > SoonDays;
+}
 
 type BillsContextValue = {
   /** Soonest due first. */
@@ -78,6 +85,7 @@ export function BillsProvider({ children }: { children: ReactNode }) {
           nextDue,
           anchor: typeof data.anchor === 'number' ? data.anchor : nextDue.getDate(),
           remind: data.remind === true,
+          lastPaid: toDate(data.lastPaid) ?? undefined,
         } satisfies Bill;
       });
       setBills(list.sort((a, b) => a.nextDue.getTime() - b.nextDue.getTime()));
@@ -115,10 +123,10 @@ export function BillsProvider({ children }: { children: ReactNode }) {
     const ref = doc(userCollection(user.uid, Name), bill.id);
     const txId = addTransaction({ type: 'expense', amount: bill.amount, category: bill.category, note: bill.name, date: new Date() });
     const next = advance(bill.nextDue, bill.cycle, bill.anchor);
-    updateDoc(ref, { nextDue: Timestamp.fromDate(next) }).catch(reportFailure('Update bill'));
+    updateDoc(ref, { nextDue: Timestamp.fromDate(next), lastPaid: Timestamp.now() }).catch(reportFailure('Update bill'));
     showToast(`Paid ${bill.name} · ${formatMoney(bill.amount, profile?.currency)}`, () => {
       if (txId) removeTransaction(txId);
-      updateDoc(ref, { nextDue: Timestamp.fromDate(bill.nextDue) }).catch(reportFailure('Undo'));
+      updateDoc(ref, { nextDue: Timestamp.fromDate(bill.nextDue), lastPaid: bill.lastPaid ? Timestamp.fromDate(bill.lastPaid) : deleteField() }).catch(reportFailure('Undo'));
     });
   }
 

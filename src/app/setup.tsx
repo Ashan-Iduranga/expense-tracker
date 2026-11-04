@@ -165,7 +165,7 @@ export default function Setup() {
             <Txt variant="body" color="ink2">
               A first name is enough. It stays in your account.
             </Txt>
-            <TextInput
+            <TextInput maxFontSizeMultiplier={1.2}
               value={name}
               onChangeText={(t) => {
                 setName(t);
@@ -230,7 +230,7 @@ export default function Setup() {
                   </Txt>
                   <View style={[styles.money, { backgroundColor: c.bg, borderColor: c.line2 }]}>
                     <Txt variant="bodySemi" color="ink3">Rs</Txt>
-                    <TextInput value={income} onChangeText={(t) => setIncome(digitsOnly(t))} keyboardType="number-pad" placeholder="0" placeholderTextColor={c.ink3} aria-label={usualAmountLabel(s.word, freq)} style={[styles.moneyInput, { color: c.ink }]} />
+                    <TextInput maxFontSizeMultiplier={1.2} value={income} onChangeText={(t) => setIncome(digitsOnly(t))} keyboardType="number-pad" placeholder="0" placeholderTextColor={c.ink3} aria-label={usualAmountLabel(s.word, freq)} style={[styles.moneyInput, { color: c.ink }]} />
                   </View>
                 </Animated.View>
               ) : (
@@ -243,7 +243,7 @@ export default function Setup() {
               <Txt variant="bodySemi">Monthly spending budget</Txt>
               <View style={[styles.money, { backgroundColor: c.bg, borderColor: c.line2 }]}>
                 <Txt variant="bodySemi" color="ink3">Rs</Txt>
-                <TextInput value={budget} onChangeText={(t) => setBudget(digitsOnly(t))} keyboardType="number-pad" placeholder="No budget" placeholderTextColor={c.ink3} aria-label="Monthly budget" style={[styles.moneyInput, { color: c.ink }]} />
+                <TextInput maxFontSizeMultiplier={1.2} value={budget} onChangeText={(t) => setBudget(digitsOnly(t))} keyboardType="number-pad" placeholder="No budget" placeholderTextColor={c.ink3} aria-label="Monthly budget" style={[styles.moneyInput, { color: c.ink }]} />
               </View>
               <View style={styles.chips}>
                 {s.budgetSuggestions.map((b) => (
