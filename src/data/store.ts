@@ -1,32 +1,16 @@
-/** Shared Firestore helpers for the per-user collections (users/{uid}/<name>). */
-import { collection, getDocs, Timestamp, writeBatch } from 'firebase/firestore';
-import { Alert } from 'react-native';
+/** Shared helpers for the per-user collections (users/{uid}/<name>). Reads and writes go through ./sync. */
+import { Timestamp } from 'firebase/firestore';
 
-import { db } from '@/lib/firebase';
+export { clearCollection } from '@/data/sync';
 
+/** Path of users/{uid}/<name>, for the sync layer. */
 export function userCollection(uid: string, name: string) {
-  return collection(db, 'users', uid, name);
+  return ['users', uid, name];
 }
 
-/**
- * Writes aren't awaited: snapshot listeners show changes straight away and Firestore
- * retries offline. This reports the rare write the server rejects (usually the rules).
- */
-export function reportFailure(action: string) {
-  return (error: unknown) => {
-    console.error(`${action} failed`, error);
-    Alert.alert(`Couldn’t ${action.toLowerCase()}`, 'The server rejected the change. Please try again.');
-  };
-}
-
-/** Deletes a whole collection in batches (Settings → Delete all data). */
-export async function clearCollection(uid: string, name: string) {
-  const snap = await getDocs(userCollection(uid, name));
-  for (let i = 0; i < snap.docs.length; i += 450) {
-    const batch = writeBatch(db);
-    snap.docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
+/** Path of users/{uid}/<name>/{id}. */
+export function userDoc(uid: string, name: string, id: string) {
+  return ['users', uid, name, id];
 }
 
 /** Firestore timestamp (or missing) to Date (or null). */

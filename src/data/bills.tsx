@@ -1,9 +1,10 @@
-import { deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAccount } from '@/data/account';
 import { isExpenseCategory, type ExpenseCategory } from '@/data/categories';
-import { clearCollection, reportFailure, toDate, userCollection } from '@/data/store';
+import { clearCollection, toDate, userCollection, userDoc } from '@/data/store';
+import { newId, patch, put, remove, removeField, serverTime, watchCollection } from '@/data/sync';
 import { useToast } from '@/data/toast';
 import { useTransactions } from '@/data/transactions';
 import { formatMoney } from '@/lib/format';
@@ -71,8 +72,8 @@ export function BillsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(userCollection(user.uid, Name), (snap) => {
-      const list = snap.docs.map((d) => {
+    return watchCollection(userCollection(user.uid, Name), (docs) => {
+      const list = docs.map((d) => {
         const data = d.data();
         const nextDue = toDate(data.nextDue) ?? new Date();
         return {
@@ -105,33 +106,33 @@ export function BillsProvider({ children }: { children: ReactNode }) {
 
   function addBill(bill: NewBill) {
     if (!user) return;
-    setDoc(doc(userCollection(user.uid, Name)), { ...toFirestore(bill), createdAt: serverTimestamp() }).catch(reportFailure('Save bill'));
+    put(userDoc(user.uid, Name, newId(userCollection(user.uid, Name))), { ...toFirestore(bill), createdAt: serverTime() });
   }
 
   function updateBill(id: string, bill: NewBill) {
     if (!user) return;
-    updateDoc(doc(userCollection(user.uid, Name), id), toFirestore(bill)).catch(reportFailure('Save bill'));
+    patch(userDoc(user.uid, Name, id), toFirestore(bill));
   }
 
   function deleteBill(id: string) {
     if (!user) return;
-    deleteDoc(doc(userCollection(user.uid, Name), id)).catch(reportFailure('Delete bill'));
+    remove(userDoc(user.uid, Name, id));
   }
 
   function markPaid(bill: Bill) {
     if (!user) return;
-    const ref = doc(userCollection(user.uid, Name), bill.id);
+    const ref = userDoc(user.uid, Name, bill.id);
     const txId = addTransaction({ type: 'expense', amount: bill.amount, category: bill.category, note: bill.name, date: new Date() });
     const next = advance(bill.nextDue, bill.cycle, bill.anchor);
-    updateDoc(ref, { nextDue: Timestamp.fromDate(next), lastPaid: Timestamp.now() }).catch(reportFailure('Update bill'));
+    patch(ref, { nextDue: Timestamp.fromDate(next), lastPaid: Timestamp.now() });
     showToast(`Paid ${bill.name} · ${formatMoney(bill.amount, profile?.currency)}`, () => {
       if (txId) removeTransaction(txId);
-      updateDoc(ref, { nextDue: Timestamp.fromDate(bill.nextDue), lastPaid: bill.lastPaid ? Timestamp.fromDate(bill.lastPaid) : deleteField() }).catch(reportFailure('Undo'));
+      patch(ref, { nextDue: Timestamp.fromDate(bill.nextDue), lastPaid: bill.lastPaid ? Timestamp.fromDate(bill.lastPaid) : removeField() });
     });
   }
 
   return (
-    <BillsContext value={{ bills, monthly, addBill, updateBill, deleteBill, markPaid, clearAll: async () => { if (user) await clearCollection(user.uid, Name); } }}>
+    <BillsContext value={{ bills, monthly, addBill, updateBill, deleteBill, markPaid, clearAll: async () => { if (user) clearCollection(userCollection(user.uid, Name)); } }}>
       {children}
     </BillsContext>
   );

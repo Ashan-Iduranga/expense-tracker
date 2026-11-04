@@ -1,9 +1,9 @@
 import { onAuthStateChanged, signInAnonymously, type User } from 'firebase/auth';
-import { deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 
 import { IncomeFrequencies, isExpenseCategory, Statuses, type ExpenseCategory, type IncomeFrequency, type Status } from '@/data/categories';
-import { auth, db } from '@/lib/firebase';
+import { patch, put, remove, serverTime, watchDoc } from '@/data/sync';
+import { auth } from '@/lib/firebase';
 
 export type ThemePref = 'system' | 'light' | 'dark';
 export const Currencies = ['Rs', 'LKR', '₹', '$', '€', '£'] as const;
@@ -110,37 +110,36 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(
-      doc(db, 'users', user.uid),
-      (snapshot) => {
-        const data = snapshot.data();
-        if (!data && snapshot.metadata.fromCache) {
-          // Offline: we can't tell a first launch from a returning user yet,
-          // so don't show onboarding. A server snapshot replaces this.
-          setStatus('error');
-          return;
-        }
-        setProfile(data ? fromFirestore(data) : null);
+    // From the phone first, so the app opens offline with the saved profile.
+    return watchDoc(['users', user.uid], (data, source) => {
+      if (data) {
+        setProfile(fromFirestore(data));
         setStatus('ready');
-      },
-      () => setStatus('error')
-    );
+      } else if (source === 'server' || source === 'device') {
+        setProfile(null); // A first launch, or the profile was deleted on this phone.
+        setStatus('ready');
+      } else if (source === 'offline') {
+        // Offline with nothing saved on this phone: we can't tell a first launch from a
+        // returning user yet, so don't show onboarding. A server answer replaces this.
+        setStatus('error');
+      }
+    });
   }, [user]);
 
   async function saveProfile(next: Profile) {
     if (!user) throw new Error('Not signed in yet');
     setFinishingSetup(true);
-    await setDoc(doc(db, 'users', user.uid), { ...next, createdAt: serverTimestamp() });
+    put(['users', user.uid], { ...next, createdAt: serverTime() });
   }
 
   async function updateProfile(changes: Partial<Profile>) {
     if (!user) throw new Error('Not signed in yet');
-    await updateDoc(doc(db, 'users', user.uid), changes);
+    patch(['users', user.uid], changes);
   }
 
   async function deleteProfile() {
     if (!user) throw new Error('Not signed in yet');
-    await deleteDoc(doc(db, 'users', user.uid));
+    remove(['users', user.uid]);
   }
 
   return (

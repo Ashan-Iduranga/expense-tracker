@@ -1,8 +1,8 @@
-import { deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 
 import { useAccount } from '@/data/account';
-import { clearCollection, reportFailure, toDate, userCollection } from '@/data/store';
+import { clearCollection, toDate, userCollection, userDoc } from '@/data/store';
+import { newId, patch, put, remove, serverTime, watchCollection } from '@/data/sync';
 
 export type ListItem = { id: string; name: string; qty: number; price: number | null; done: boolean };
 
@@ -61,8 +61,8 @@ export function ListsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(userCollection(user.uid, Name), (snap) => {
-      const all = snap.docs.map((d) => {
+    return watchCollection(userCollection(user.uid, Name), (docs) => {
+      const all = docs.map((d) => {
         const data = d.data();
         return {
           id: d.id,
@@ -78,23 +78,23 @@ export function ListsProvider({ children }: { children: ReactNode }) {
 
   function addList(name: string, budget: number | null) {
     if (!user) return;
-    const ref = doc(userCollection(user.uid, Name));
-    setDoc(ref, { name, budget, items: [], createdAt: serverTimestamp() }).catch(reportFailure('Create list'));
-    return ref.id;
+    const id = newId(userCollection(user.uid, Name));
+    put(userDoc(user.uid, Name, id), { name, budget, items: [], createdAt: serverTime() });
+    return id;
   }
 
   function updateList(id: string, changes: Partial<Pick<ShoppingList, 'name' | 'budget' | 'items'>>) {
     if (!user) return;
-    updateDoc(doc(userCollection(user.uid, Name), id), changes).catch(reportFailure('Save list'));
+    patch(userDoc(user.uid, Name, id), changes);
   }
 
   function deleteList(id: string) {
     if (!user) return;
-    deleteDoc(doc(userCollection(user.uid, Name), id)).catch(reportFailure('Delete list'));
+    remove(userDoc(user.uid, Name, id));
   }
 
   return (
-    <ListsContext value={{ lists, addList, updateList, deleteList, clearAll: async () => { if (user) await clearCollection(user.uid, Name); } }}>{children}</ListsContext>
+    <ListsContext value={{ lists, addList, updateList, deleteList, clearAll: async () => { if (user) clearCollection(userCollection(user.uid, Name)); } }}>{children}</ListsContext>
   );
 }
 

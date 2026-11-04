@@ -1,9 +1,10 @@
-import { deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { IconName } from '@/components/icon';
 import { useAccount } from '@/data/account';
-import { clearCollection, reportFailure, toDate, userCollection } from '@/data/store';
+import { clearCollection, toDate, userCollection, userDoc } from '@/data/store';
+import { newId, patch, put, remove, serverTime, watchCollection } from '@/data/sync';
 import { useTransactions } from '@/data/transactions';
 import { shortMonth, startOfDay } from '@/lib/format';
 
@@ -60,8 +61,8 @@ export function PlansProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(userCollection(user.uid, Name), (snap) => {
-      const all = snap.docs.map((d) => {
+    return watchCollection(userCollection(user.uid, Name), (docs) => {
+      const all = docs.map((d) => {
         const data = d.data();
         return {
           id: d.id,
@@ -85,22 +86,22 @@ export function PlansProvider({ children }: { children: ReactNode }) {
 
   function addPlan(plan: NewPlan) {
     if (!user) return;
-    setDoc(doc(userCollection(user.uid, Name)), { ...toFirestore(plan), createdAt: serverTimestamp() }).catch(reportFailure('Create plan'));
+    put(userDoc(user.uid, Name, newId(userCollection(user.uid, Name))), { ...toFirestore(plan), createdAt: serverTime() });
   }
 
   function updatePlan(id: string, plan: NewPlan) {
     if (!user) return;
-    updateDoc(doc(userCollection(user.uid, Name), id), toFirestore(plan)).catch(reportFailure('Save plan'));
+    patch(userDoc(user.uid, Name, id), toFirestore(plan));
   }
 
   /** The expenses stay in History; they just lose their plan tag. */
   function deletePlan(id: string) {
     if (!user) return;
-    deleteDoc(doc(userCollection(user.uid, Name), id)).catch(reportFailure('Delete plan'));
+    remove(userDoc(user.uid, Name, id));
   }
 
   return (
-    <PlansContext value={{ plans, spent, addPlan, updatePlan, deletePlan, clearAll: async () => { if (user) await clearCollection(user.uid, Name); } }}>
+    <PlansContext value={{ plans, spent, addPlan, updatePlan, deletePlan, clearAll: async () => { if (user) clearCollection(userCollection(user.uid, Name)); } }}>
       {children}
     </PlansContext>
   );

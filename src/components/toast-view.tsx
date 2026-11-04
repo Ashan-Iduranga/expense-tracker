@@ -3,13 +3,14 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
+import { SyncBadge } from '@/components/sync-badge';
 import { Txt } from '@/components/txt';
 import { ToastEnter, ToastExit } from '@/constants/motion';
 import { MaxContentWidth, NavHeight } from '@/constants/theme';
 import { useToast } from '@/data/toast';
 import { useColors } from '@/hooks/use-colors';
 
-/** The one toast, floating above the nav. Announced politely to screen readers. */
+/** The one toast, floating above the nav, with the offline badge above it. Announced politely to screen readers. */
 export function ToastView({ aboveNav = true }: { aboveNav?: boolean }) {
   const { toast, hideToast } = useToast();
   const c = useColors();
@@ -18,6 +19,7 @@ export function ToastView({ aboveNav = true }: { aboveNav?: boolean }) {
 
   return (
     <View pointerEvents="box-none" style={[styles.overlay, { bottom }]}>
+      <SyncBadge />
       {toast && (
         <Animated.View key={toast.id} entering={ToastEnter} exiting={ToastExit} aria-live="polite" style={[styles.toast, { backgroundColor: c.toast }]}>
           <Icon name={toast.icon} size={18} color={c.toastAccent} />
@@ -46,7 +48,7 @@ export function ToastView({ aboveNav = true }: { aboveNav?: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
+  overlay: { position: 'absolute', left: 16, right: 16, alignItems: 'center', gap: 8 },
   toast: {
     width: '100%',
     maxWidth: MaxContentWidth,

@@ -1,11 +1,11 @@
-import { doc, increment, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAccount } from '@/data/account';
 import { useBills } from '@/data/bills';
 import { useLoans } from '@/data/loans';
 import { usePlans } from '@/data/plans';
-import { clearCollection, reportFailure, userCollection } from '@/data/store';
+import { clearCollection, userCollection, userDoc } from '@/data/store';
+import { inc, put, serverTime, watchDoc } from '@/data/sync';
 import { useTransactions } from '@/data/transactions';
 import { monthCommitments, type Commitments } from '@/lib/commitments';
 import { monthRange, sums } from '@/lib/stats';
@@ -58,8 +58,7 @@ export function MonthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(doc(userCollection(user.uid, Name), key), (snap) => {
-      const d = snap.data();
+    return watchDoc(userDoc(user.uid, Name, key), (d) => {
       setAlloc(
         d
           ? { spend: Number(d.spend) || 0, saved: Number(d.saved) || 0, tipDismissed: d.tipDismissed === true }
@@ -80,9 +79,9 @@ export function MonthProvider({ children }: { children: ReactNode }) {
     return Math.max(0, Math.round(income - budget - alloc.spend - alloc.saved));
   }, [transactions, profile, alloc]);
 
-  function write(fields: Record<string, unknown>, action: string) {
+  function write(fields: Record<string, unknown>) {
     if (!user) return;
-    setDoc(doc(userCollection(user.uid, Name), key), { ...fields, updatedAt: serverTimestamp() }, { merge: true }).catch(reportFailure(action));
+    put(userDoc(user.uid, Name, key), { ...fields, updatedAt: serverTime() }, { merge: true });
   }
 
   return (
@@ -91,12 +90,12 @@ export function MonthProvider({ children }: { children: ReactNode }) {
         alloc,
         committed,
         surplus,
-        assign: (spend, saved) => write({ spend: increment(Math.max(0, spend)), saved: increment(Math.max(0, saved)) }, 'Save'),
-        dismissTip: () => write({ tipDismissed: true }, 'Save'),
+        assign: (spend, saved) => write({ spend: inc(Math.max(0, spend)), saved: inc(Math.max(0, saved)) }),
+        dismissTip: () => write({ tipDismissed: true }),
         askSurplus,
         setAskSurplus,
         clearAll: async () => {
-          if (user) await clearCollection(user.uid, Name);
+          if (user) clearCollection(userCollection(user.uid, Name));
         },
       }}>
       {children}

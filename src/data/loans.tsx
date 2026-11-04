@@ -1,8 +1,9 @@
-import { deleteDoc, doc, increment, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAccount } from '@/data/account';
-import { clearCollection, reportFailure, toDate, userCollection } from '@/data/store';
+import { clearCollection, toDate, userCollection, userDoc } from '@/data/store';
+import { inc, newId, patch, put, remove, serverTime, watchCollection } from '@/data/sync';
 import { useToast } from '@/data/toast';
 import { useTransactions } from '@/data/transactions';
 import { formatMoney } from '@/lib/format';
@@ -77,8 +78,8 @@ export function LoansProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(userCollection(user.uid, Name), (snap) => {
-      const list = snap.docs.map((d) => {
+    return watchCollection(userCollection(user.uid, Name), (docs) => {
+      const list = docs.map((d) => {
         const data = d.data();
         return {
           id: d.id,
@@ -111,23 +112,23 @@ export function LoansProvider({ children }: { children: ReactNode }) {
 
   function addLoan(loan: NewLoan) {
     if (!user) return;
-    setDoc(doc(userCollection(user.uid, Name)), { ...toFirestore(loan), paid: 0, createdAt: serverTimestamp() }).catch(reportFailure('Save loan'));
+    put(userDoc(user.uid, Name, newId(userCollection(user.uid, Name))), { ...toFirestore(loan), paid: 0, createdAt: serverTime() });
   }
 
   function updateLoan(id: string, loan: NewLoan) {
     if (!user) return;
-    updateDoc(doc(userCollection(user.uid, Name), id), toFirestore(loan)).catch(reportFailure('Save loan'));
+    patch(userDoc(user.uid, Name, id), toFirestore(loan));
   }
 
   function deleteLoan(id: string) {
     if (!user) return;
-    deleteDoc(doc(userCollection(user.uid, Name), id)).catch(reportFailure('Delete loan'));
+    remove(userDoc(user.uid, Name, id));
   }
 
   function recordPayment(loan: Loan, amount: number) {
     if (!user || amount <= 0) return;
-    const ref = doc(userCollection(user.uid, Name), loan.id);
-    updateDoc(ref, { paid: increment(amount) }).catch(reportFailure('Record payment'));
+    const ref = userDoc(user.uid, Name, loan.id);
+    patch(ref, { paid: inc(amount) });
     const txId =
       loan.direction === 'borrowed'
         ? addTransaction({ type: 'expense', amount, category: 'bills', note: `Loan · ${loan.person}`.slice(0, 80), date: new Date(), loanId: loan.id })
@@ -136,13 +137,13 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     const settles = loan.paid + amount >= loan.amount;
     const text = loan.direction === 'lent' ? `${loan.person} paid back ${money}` : `You paid ${loan.person} ${money}`;
     showToast(settles ? `${text}. All settled!` : text, () => {
-      updateDoc(ref, { paid: increment(-amount) }).catch(reportFailure('Undo'));
+      patch(ref, { paid: inc(-amount) });
       if (txId) removeTransaction(txId);
     });
   }
 
   return (
-    <LoansContext value={{ loans, totals, addLoan, updateLoan, deleteLoan, recordPayment, clearAll: async () => { if (user) await clearCollection(user.uid, Name); } }}>
+    <LoansContext value={{ loans, totals, addLoan, updateLoan, deleteLoan, recordPayment, clearAll: async () => { if (user) clearCollection(userCollection(user.uid, Name)); } }}>
       {children}
     </LoansContext>
   );

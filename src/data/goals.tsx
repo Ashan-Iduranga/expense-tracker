@@ -1,23 +1,9 @@
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  increment,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  writeBatch,
-} from 'firebase/firestore';
 import { createContext, use, useEffect, useState, type ReactNode } from 'react';
-import { Alert } from 'react-native';
 
 import type { IconName } from '@/components/icon';
 import { useAccount } from '@/data/account';
-import { db } from '@/lib/firebase';
+import { userCollection, userDoc } from '@/data/store';
+import { clearCollection, inc, newId, patch, put, remove, serverTime, watchCollection } from '@/data/sync';
 
 export type Goal = {
   id: string;
@@ -39,17 +25,7 @@ type GoalsContextValue = {
 
 const GoalsContext = createContext<GoalsContextValue | null>(null);
 
-/** Firestore path: users/{uid}/goals. */
-function goalsCollection(uid: string) {
-  return collection(db, 'users', uid, 'goals');
-}
-
-function fail(action: string) {
-  return (error: unknown) => {
-    console.error(`${action} failed`, error);
-    Alert.alert(`Couldn’t ${action.toLowerCase()}`, 'The server rejected the change. Please try again.');
-  };
-}
+const Name = 'goals';
 
 export function GoalsProvider({ children }: { children: ReactNode }) {
   const { user } = useAccount();
@@ -57,39 +33,39 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(query(goalsCollection(user.uid), orderBy('createdAt', 'asc')), (snapshot) => {
+    return watchCollection(userCollection(user.uid, Name), (docs) => {
+      const created = (d: (typeof docs)[number]) => (d.data().createdAt?.toMillis?.() as number | undefined) ?? Infinity;
       setGoals(
-        snapshot.docs.map((d) => {
-          const data = d.data();
-          return { id: d.id, name: data.name, icon: data.icon, target: data.target, saved: data.saved ?? 0 };
-        })
+        [...docs]
+          .sort((x, y) => created(x) - created(y))
+          .map((d) => {
+            const data = d.data();
+            return { id: d.id, name: data.name, icon: data.icon, target: data.target, saved: data.saved ?? 0 };
+          })
       );
     });
   }, [user]);
 
   function addGoal({ saved = 0, ...goal }: Omit<Goal, 'id' | 'saved'> & { saved?: number }) {
     if (!user) return;
-    const ref = doc(goalsCollection(user.uid));
-    setDoc(ref, { ...goal, saved, createdAt: serverTimestamp() }).catch(fail('Create goal'));
-    return ref.id;
+    const id = newId(userCollection(user.uid, Name));
+    put(userDoc(user.uid, Name, id), { ...goal, saved, createdAt: serverTime() });
+    return id;
   }
 
   function addToGoal(id: string, amount: number) {
     if (!user) return;
-    updateDoc(doc(goalsCollection(user.uid), id), { saved: increment(amount) }).catch(fail('Add to goal'));
+    patch(userDoc(user.uid, Name, id), { saved: inc(amount) });
   }
 
   function deleteGoal(id: string) {
     if (!user) return;
-    deleteDoc(doc(goalsCollection(user.uid), id)).catch(fail('Delete goal'));
+    remove(userDoc(user.uid, Name, id));
   }
 
   async function clearAll() {
     if (!user) return;
-    const snap = await getDocs(goalsCollection(user.uid));
-    const batch = writeBatch(db);
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
+    clearCollection(userCollection(user.uid, Name));
   }
 
   return <GoalsContext value={{ goals, addGoal, addToGoal, deleteGoal, clearAll }}>{children}</GoalsContext>;

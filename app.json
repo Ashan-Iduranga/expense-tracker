@@ -46,7 +46,8 @@
           "color": "#C6F432",
           "enableRemoteNotifications": false
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
