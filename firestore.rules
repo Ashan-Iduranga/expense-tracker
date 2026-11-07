@@ -50,6 +50,46 @@ service cloud.firestore {
       allow create, update: if isOwner(uid) && monthId.matches('^[0-9]{4}-[0-9]{2}$') && isValidMonth(request.resource.data);
     }
 
+    // Ratings and feedback, one per install: reviews/{uid}. The website lists the approved ones.
+    // A star-only rating has nothing to moderate, so it goes live at once; one with text waits as
+    // 'pending' until it is approved in the Firebase console (the console bypasses these rules).
+    match /reviews/{uid} {
+      allow read: if resource.data.status == 'approved' || isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidReview(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    // Feedback sent from the website's "Write a review" form (visitors aren't signed in). Every one
+    // waits as 'pending' until it is approved in the Firebase console; clients can't edit or delete.
+    match /webReviews/{id} {
+      allow read: if resource.data.status == 'approved';
+      allow create: if isValidWebReview(request.resource.data);
+    }
+
+    function isValidWebReview(data) {
+      return data.keys().hasOnly(['rating', 'text', 'name', 'status', 'createdAt'])
+        && data.keys().hasAll(['rating', 'text', 'name', 'status', 'createdAt'])
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 280
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 24
+        && data.status == 'pending'
+        && data.createdAt is timestamp
+        && data.createdAt > request.time - duration.value(5, 'm')
+        && data.createdAt < request.time + duration.value(5, 'm');
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasOnly(['rating', 'text', 'name', 'appVersion', 'status', 'createdAt', 'updatedAt'])
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.text is string && data.text.size() <= 280
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 24
+        && data.appVersion is string && data.appVersion.size() <= 12
+        && ((data.text.size() == 0 && data.status == 'approved')
+          || (data.text.size() > 0 && data.status == 'pending'))
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }

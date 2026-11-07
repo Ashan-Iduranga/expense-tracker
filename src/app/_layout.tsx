@@ -104,6 +104,7 @@ function App({ needsSetup, showReminders }: { needsSetup: boolean; showReminders
           <Stack.Screen name="list/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="plans" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="plan/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="rate" options={{ animation: 'slide_from_right' }} />
         </Stack.Protected>
       </Stack>
       {showReminders && <Reminders />}

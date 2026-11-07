@@ -47,6 +47,7 @@ const Shapes = {
   shield: [p('M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z'), p('m9 12 2 2 4-4')],
   phone: [rect(7, 2.5, 10, 19, 2), p('M11 18h2')],
   download: [p('M12 4v11M7 10l5 5 5-5M5 20h14')],
+  upload: [p('M12 16V5M7 9l5-5 5 5M5 20h14')],
   globe: [circle(12, 12, 9), p('M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18')],
   bell: [p('M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z'), p('M10 21h4')],
   edit: [p('M4 20h4L19 9l-4-4L4 16z')],
@@ -60,6 +61,7 @@ const Shapes = {
   map: [p('M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z'), p('M9 4v13.5M15 6.5V20')],
   minus: [p('M5 12h14')],
   handshake: [p('M3 12l4-4 3 2 3-3 3 1 5 4'), p('M7 14l3 3c.8.8 2 .8 2.8 0L18 12'), p('M10 13.5l2 2M12.5 11.5l2 2')],
+  star: [p('M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z')],
 } as const satisfies Record<string, readonly Shape[]>;
 
 export type IconName = keyof typeof Shapes;

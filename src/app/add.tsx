@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { KeyboardAwareScrollView, useKeyboardState } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -36,6 +36,7 @@ import { hapticSelection, hapticSuccess } from '@/lib/haptics';
 import { monthRange, sums } from '@/lib/stats';
 
 const Keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'] as const;
+const KeyRows = [Keys.slice(0, 3), Keys.slice(3, 6), Keys.slice(6, 9), Keys.slice(9, 12)];
 
 /** "12,480.5" while typing: grouped whole part, decimals as typed. */
 function amountText(a: string) {
@@ -44,7 +45,7 @@ function amountText(a: string) {
   return Number(whole || 0).toLocaleString('en-US') + (frac !== undefined ? `.${frac}` : '');
 }
 
-function CatChip({ id, type, selected, onPress }: { id: CategoryId; type: TxType; selected: boolean; onPress: () => void }) {
+function CatChip({ id, type, selected, size, onPress }: { id: CategoryId; type: TxType; selected: boolean; size: number; onPress: () => void }) {
   const c = useColors();
   const reduced = useReducedMotion();
   const info = categoryInfo(id);
@@ -56,9 +57,9 @@ function CatChip({ id, type, selected, onPress }: { id: CategoryId; type: TxType
   }, [selected, reduced, tilt]);
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: 1 + 0.12 * tilt.get() }, { rotate: `${-6 * tilt.get()}deg` }] }));
   return (
-    <Pressable role="radio" aria-checked={selected} aria-label={info.name} onPress={onPress} style={styles.cat}>
+    <Pressable role="radio" aria-checked={selected} aria-label={info.name} onPress={onPress} style={[styles.cat, { paddingVertical: size > 46 ? 6 : 2 }]}>
       <Animated.View style={boing}>
-        <Animated.View style={[styles.catIc, { backgroundColor: selected ? color : color + '24' }, icon]}>
+        <Animated.View style={[styles.catIc, { width: size, height: size, borderRadius: size * 0.32, backgroundColor: selected ? color : color + '24' }, icon]}>
           <Icon name={info.icon} size={22} color={selected ? c.onCat : color} />
         </Animated.View>
       </Animated.View>
@@ -69,7 +70,7 @@ function CatChip({ id, type, selected, onPress }: { id: CategoryId; type: TxType
   );
 }
 
-function Key({ k, onPress }: { k: (typeof Keys)[number]; onPress: () => void }) {
+function Key({ k, height, onPress }: { k: (typeof Keys)[number]; height: number; onPress: () => void }) {
   const c = useColors();
   const [down, setDown] = useState(false);
   return (
@@ -81,7 +82,7 @@ function Key({ k, onPress }: { k: (typeof Keys)[number]; onPress: () => void }) 
       onPressOut={() => setDown(false)}
       scaleTo={0.93}
       containerStyle={styles.keyWrap}
-      style={[styles.key, { backgroundColor: down ? c.keyPress : c.key }]}>
+      style={[styles.key, { minHeight: height, backgroundColor: down ? c.keyPress : c.key }]}>
       {k === 'del' ? (
         <Icon name="backspace" size={24} color={down ? c.inkFixed : c.ink} />
       ) : (
@@ -97,6 +98,11 @@ export default function Add() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  // Sized from the screen height so the whole page fits without scrolling, on short
+  // phones and with large display/font settings. The keypad takes whatever is left.
+  const { height } = useWindowDimensions();
+  const k = Math.min(1, Math.max(0.68, height / 820));
+  const keyboardOpen = useKeyboardState((s) => s.isVisible);
   const params = useLocalSearchParams<{ id?: string; type?: string; amount?: string; cat?: string; note?: string; planId?: string }>();
   const { plans } = usePlans();
   const { profile: p, status: st } = useProfile();
@@ -199,9 +205,16 @@ export default function Add() {
 
   return (
     <View style={[styles.fill, { backgroundColor: c.sheet, paddingTop: insets.top + 8 }]}>
-      <KeyboardAwareScrollView bottomOffset={62} contentContainerStyle={[styles.content, { paddingBottom: Math.max(20, insets.bottom + 10) }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        bottomOffset={62}
+        scrollEnabled={keyboardOpen}
+        bounces={false}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.content, { gap: Math.max(8, Math.round(14 * k)), paddingBottom: Math.max(16, insets.bottom + 10) }]}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.head}>
-          <Txt variant="name" style={[{ flex: 1 }, displayType(32)]} role="heading">
+          <Txt variant="name" style={[{ flex: 1 }, displayType(Math.max(26, Math.round(32 * k)))]} role="heading">
             {title}
           </Txt>
           {editing && (
@@ -245,13 +258,13 @@ export default function Add() {
         )}
 
         <Animated.View style={[styles.amountRow, amountStyle]} aria-live="polite" aria-label={`Amount ${formatMoney(value, p.currency)}`}>
-          <Txt style={styles.amountCur} color="ink3">
+          <Txt style={displayType(Math.round(34 * k))} color="ink3">
             {p.currency}
           </Txt>
-          <Txt style={styles.amount} color={type === 'income' ? c.posInk : c.ink} numberOfLines={1} adjustsFontSizeToFit>
+          <Txt style={[styles.amount, displayType(Math.round(82 * k))]} color={type === 'income' ? c.posInk : c.ink} numberOfLines={1} adjustsFontSizeToFit>
             {amountText(amount)}
           </Txt>
-          <Animated.View style={[styles.caret, { backgroundColor: c.lime }, caretStyle]} />
+          <Animated.View style={[styles.caret, { height: Math.round(56 * k), backgroundColor: c.lime }, caretStyle]} />
         </Animated.View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catsOuter} contentContainerStyle={styles.cats} role="radiogroup" aria-label="Category">
@@ -261,6 +274,7 @@ export default function Add() {
               id={id}
               type={type}
               selected={id === cat}
+              size={Math.max(40, Math.round(50 * k))}
               onPress={() => {
                 hapticSelection();
                 setCat(id);
@@ -279,7 +293,7 @@ export default function Add() {
             <Txt variant="smallSemi" color="ink2">
               Part of a plan?
             </Txt>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} role="radiogroup" aria-label="Spending plan">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noGrow} contentContainerStyle={{ gap: 8 }} role="radiogroup" aria-label="Spending plan">
               <Chip role="radio" label="No plan" selected={!planId} onPress={() => setPlanId(undefined)} />
               {planChoices.map((pl) => (
                 <Chip key={pl.id} role="radio" icon={pl.icon} label={pl.name} selected={planId === pl.id} onPress={() => setPlanId(pl.id)} />
@@ -297,8 +311,12 @@ export default function Add() {
         </View>
 
         <View style={styles.keypad}>
-          {Keys.map((k) => (
-            <Key key={k} k={k} onPress={() => press(k)} />
+          {KeyRows.map((row) => (
+            <View key={row.join('')} style={styles.keyRow}>
+              {row.map((key) => (
+                <Key key={key} k={key} height={Math.max(44, Math.round(54 * k))} onPress={() => press(key)} />
+              ))}
+            </View>
           ))}
         </View>
 
@@ -321,23 +339,26 @@ export default function Add() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingHorizontal: Gutter, gap: 14, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
+  content: { flexGrow: 1, paddingHorizontal: Gutter, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52 },
   miniLink: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 38, paddingHorizontal: 14, borderRadius: 99 },
-  amountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 4 },
-  amountCur: displayType(34),
-  amount: { ...displayType(82), maxWidth: '78%' },
-  caret: { width: 4, height: 56, borderRadius: 2 },
-  catsOuter: { marginHorizontal: -Gutter },
+  amountRow: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 4 },
+  amount: { maxWidth: '78%' },
+  caret: { width: 4, borderRadius: 2 },
+  // ScrollView defaults to flexGrow/flexShrink 1; horizontal rows must keep their own height.
+  noGrow: { flexGrow: 0, flexShrink: 0 },
+  catsOuter: { flexGrow: 0, flexShrink: 0, marginHorizontal: -Gutter },
   cats: { paddingHorizontal: Gutter, gap: 6 },
-  cat: { width: 70, alignItems: 'center', gap: 6, paddingVertical: 6 },
-  catIc: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  cat: { width: 70, alignItems: 'center', gap: 6 },
+  catIc: { alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 16, borderRadius: Radius.pill },
   noteInput: { flex: 1, minWidth: 0, fontFamily: Fonts.medium, fontSize: 16, paddingVertical: 10 },
   dates: { flexDirection: 'row', gap: 8 },
-  keypad: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, justifyContent: 'space-between' },
-  keyWrap: { width: '31.5%' },
-  key: { minHeight: 54, borderRadius: Radius.key, alignItems: 'center', justifyContent: 'center' },
+  // Rows start at the key's min height and grow into spare space, up to 76pt each.
+  keypad: { flexGrow: 1, gap: 8, justifyContent: 'flex-end' },
+  keyRow: { flexGrow: 1, maxHeight: 76, flexDirection: 'row', gap: 8 },
+  keyWrap: { flex: 1 },
+  key: { flexGrow: 1, borderRadius: Radius.key, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontFamily: Fonts.semiBold, fontSize: 24, lineHeight: 28 },
   done: { minHeight: 56, borderRadius: Radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
 });

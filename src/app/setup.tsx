@@ -19,7 +19,8 @@ import Svg, { Path } from 'react-native-svg';
 
 import { BrandMark } from '@/components/brand-mark';
 import { Chip, IconButton, PrimaryButton, Switch } from '@/components/controls';
-import { Icon } from '@/components/icon';
+import { Icon, type IconName } from '@/components/icon';
+import { useCsvImport } from '@/components/import-sheet';
 import { KeyboardBar } from '@/components/keyboard-bar';
 import { Txt } from '@/components/txt';
 import { EaseOut } from '@/constants/motion';
@@ -87,6 +88,13 @@ export default function Setup() {
   const [saving, setSaving] = useState(false);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [ticked, setTicked] = useState(0);
+  // First screen: a returning user can bring back an exported CSV before setting up.
+  const [welcome, setWelcome] = useState(true);
+  const [imported, setImported] = useState(0);
+  const csv = useCsvImport((added) => {
+    setImported(added);
+    setWelcome(false);
+  });
   const s = status ? Statuses[status] : null;
 
   function next() {
@@ -155,9 +163,33 @@ export default function Setup() {
   return (
     <View style={[styles.fill, { backgroundColor: c.bg, paddingTop: insets.top + 12, paddingBottom: Math.max(20, insets.bottom + 10) }]}>
       <KeyboardAwareScrollView bottomOffset={62} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {step < 3 && progress}
+        {welcome && step === 0 && (
+          <Animated.View key="welcome" entering={enter} style={styles.body}>
+            <Txt variant="name" style={styles.h}>
+              Used Daily Strip before?
+            </Txt>
+            <Txt variant="body" color="ink2">
+              If you exported a CSV from the app, bring your old transactions back. Dates stay as they were.
+            </Txt>
+            <View style={{ gap: 10, marginTop: 6 }}>
+              <Choice icon="upload" title="Yes, import my old CSV" hint="Pick the file you exported from Settings" onPress={csv.start} />
+              <Choice icon="sparkle" title="No, I’m new here" hint="Set up a fresh strip" onPress={() => setWelcome(false)} />
+            </View>
+          </Animated.View>
+        )}
 
-        {step === 0 && (
+        {!welcome && step < 3 && progress}
+
+        {!welcome && step === 0 && imported > 0 && (
+          <View style={[styles.imported, { backgroundColor: c.accentSoft }]}>
+            <Icon name="check" size={16} color={c.accentInk} strokeWidth={2.6} />
+            <Txt variant="smallBold" color={c.accentInk}>
+              {imported} transaction{imported === 1 ? '' : 's'} imported
+            </Txt>
+          </View>
+        )}
+
+        {!welcome && step === 0 && (
           <Animated.View key="s0" entering={enter} style={styles.body}>
             <Txt variant="name" style={styles.h}>
               What should we call you?
@@ -281,7 +313,7 @@ export default function Setup() {
       </KeyboardAwareScrollView>
 
       <View style={styles.foot}>
-        {step < 3 ? (
+        {welcome ? null : step < 3 ? (
           <PrimaryButton label={step < 2 ? 'Continue' : 'Start tracking'} busy={saving} onPress={next} icon="right" />
         ) : ticked >= checklist.length ? (
           <Animated.View entering={reduced ? undefined : FadeInDown.springify()}>
@@ -299,15 +331,34 @@ export default function Setup() {
           <View style={{ height: 56 }} />
         )}
         {step === 0 && (
-          <Pressable role="button" onPress={() => router.back()} style={styles.backLink}>
+          <Pressable role="button" onPress={() => (welcome ? router.back() : setWelcome(true))} style={styles.backLink}>
             <Txt variant="smallBold" color="ink2">
-              Back to intro
+              {welcome ? 'Back to intro' : 'Back'}
             </Txt>
           </Pressable>
         )}
       </View>
       <KeyboardBar />
+      {csv.sheet}
     </View>
+  );
+}
+
+function Choice({ icon, title, hint, onPress }: { icon: IconName; title: string; hint: string; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable role="button" onPress={onPress} style={({ pressed }) => [styles.choice, { backgroundColor: pressed ? c.surface2 : c.surface, borderColor: c.line }]}>
+      <View style={[styles.statusIc, { backgroundColor: c.surface2, marginBottom: 0 }]}>
+        <Icon name={icon} size={20} color={c.ink} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt variant="bodyBold">{title}</Txt>
+        <Txt variant="caption" color="ink2">
+          {hint}
+        </Txt>
+      </View>
+      <Icon name="right" size={18} color={c.ink3} />
+    </Pressable>
   );
 }
 
@@ -377,6 +428,8 @@ const styles = StyleSheet.create({
   checkBox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   checkFill: { position: 'absolute', top: -2, left: -2, right: -2, bottom: -2, borderRadius: 8 },
   mark: { alignSelf: 'flex-start', marginBottom: 6 },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, padding: 14, borderRadius: Radius.card - 4, borderWidth: 1.5 },
+  imported: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingHorizontal: 12, minHeight: 34, borderRadius: 99 },
   foot: { paddingHorizontal: Gutter, paddingTop: 10, gap: 6, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   backLink: { alignSelf: 'center', minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
 });

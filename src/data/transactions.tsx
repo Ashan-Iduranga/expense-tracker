@@ -33,6 +33,11 @@ type TransactionsContextValue = {
   deleteTransaction: (id: string) => void;
   /** Deletes without a toast, for another screen's own Undo. */
   removeTransaction: (id: string) => void;
+  /**
+   * Adds transactions from an imported CSV, keeping their dates. Ones already in the app
+   * (same day, type, amount, category and note) are skipped, so importing twice is safe.
+   */
+  importTransactions: (txs: NewTransaction[]) => { added: number; duplicates: number };
   /** Removes every transaction (Settings → Delete all data). */
   clearAll: () => Promise<void>;
 };
@@ -55,6 +60,12 @@ function toFirestore(tx: NewTransaction) {
     ...(tx.planId ? { planId: tx.planId } : {}),
     ...(tx.loanId ? { loanId: tx.loanId } : {}),
   };
+}
+
+/** Identity used to spot an imported row that's already in the app. */
+export function txKey(tx: NewTransaction) {
+  const d = tx.date;
+  return [d.getFullYear(), d.getMonth(), d.getDate(), tx.type, tx.amount.toFixed(2), tx.category, tx.note.trim().toLowerCase()].join('|');
 }
 
 export function TransactionsProvider({ children }: { children: ReactNode }) {
@@ -123,6 +134,28 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     [user, showToast]
   );
 
+  function importTransactions(txs: NewTransaction[]) {
+    if (!user) return { added: 0, duplicates: 0 };
+    // Counted, so two real same-day coffees in the file both come in, but each only once.
+    const have = new Map<string, number>();
+    for (const t of txRef.current) have.set(txKey(t), (have.get(txKey(t)) ?? 0) + 1);
+    let added = 0;
+    let duplicates = 0;
+    for (const tx of txs) {
+      const key = txKey(tx);
+      const n = have.get(key) ?? 0;
+      if (n > 0) {
+        have.set(key, n - 1);
+        duplicates++;
+        continue;
+      }
+      const id = newId(userCollection(user.uid, Name));
+      put(userDoc(user.uid, Name, id), { ...toFirestore(tx), createdAt: serverTime() });
+      added++;
+    }
+    return { added, duplicates };
+  }
+
   async function clearAll() {
     if (!user) return;
     clearCollection(userCollection(user.uid, Name));
@@ -130,7 +163,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
   return (
     <TransactionsContext
-      value={{ transactions, status, addTransaction, updateTransaction, deleteTransaction, removeTransaction, clearAll }}>
+      value={{ transactions, status, addTransaction, updateTransaction, deleteTransaction, removeTransaction, importTransactions, clearAll }}>
       {children}
     </TransactionsContext>
   );

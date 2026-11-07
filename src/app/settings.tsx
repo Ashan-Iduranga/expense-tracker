@@ -7,10 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chip, IconButton, PrimaryButton, Segmented, Switch } from '@/components/controls';
 import { Icon, type IconName } from '@/components/icon';
+import { useCsvImport } from '@/components/import-sheet';
 import { KeyboardBar } from '@/components/keyboard-bar';
 import { Enter } from '@/components/motion';
 import { Sheet } from '@/components/sheet';
 import { Txt } from '@/components/txt';
+import { UpdateSheet } from '@/components/update-sheet';
 import { displayType, Fonts, Gutter, MaxContentWidth, Radius } from '@/constants/theme';
 import { Currencies, digitsOnly, parseAmount, useAccount, type ThemePref } from '@/data/account';
 import { ExpenseCategories, ExpenseIds, FrequencyIds, IncomeFrequencies, Statuses, StatusIds, usualAmountLabel, type ExpenseCategory } from '@/data/categories';
@@ -20,12 +22,14 @@ import { useLists } from '@/data/lists';
 import { useLoans } from '@/data/loans';
 import { useMonth } from '@/data/month';
 import { usePlans } from '@/data/plans';
+import { appVersion, useMyReview } from '@/data/reviews';
 import { useToast } from '@/data/toast';
 import { useTransactions } from '@/data/transactions';
 import { useColors } from '@/hooks/use-colors';
 import { useProfile } from '@/hooks/use-profile';
 import { exportCsv } from '@/lib/csv';
 import { ordinal } from '@/lib/format';
+import { useUpdate } from '@/lib/update-check';
 
 function Group({ title, children, index }: { title: string; children: ReactNode; index: number }) {
   const c = useColors();
@@ -104,6 +108,7 @@ export default function Settings() {
   const { profile: p, status: st } = useProfile();
   const { updateProfile, deleteProfile } = useAccount();
   const { transactions, clearAll: clearTx } = useTransactions();
+  const csv = useCsvImport();
   const { clearAll: clearGoals } = useGoals();
   const { clearAll: clearBills } = useBills();
   const { clearAll: clearLoans } = useLoans();
@@ -115,6 +120,9 @@ export default function Settings() {
   const [budgetsOpen, setBudgetsOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const { review: myReview } = useMyReview();
+  const update = useUpdate();
   const word = st.word.toLowerCase();
   const setCount = Object.values(p.catBudgets).filter((v) => (v ?? 0) > 0).length;
 
@@ -317,6 +325,31 @@ export default function Settings() {
             onPress={() => exportCsv(transactions).catch(() => showToast('Couldn’t export. Please try again.'))}
             right={<Icon name="right" size={18} color={c.ink3} />}
           />
+          <Row
+            icon="upload"
+            label="Import from CSV"
+            hint="Bring back an exported file · dates kept as they were"
+            onPress={csv.start}
+            right={<Icon name="right" size={18} color={c.ink3} />}
+          />
+        </Group>
+
+        <Group title="About" index={i++}>
+          <Row
+            first
+            icon="star"
+            label={myReview ? 'Your rating' : 'Rate Daily Strip'}
+            hint={myReview ? `${'★'.repeat(myReview.rating)}${'☆'.repeat(5 - myReview.rating)} · tap to change` : 'Stars and feedback show on our website'}
+            onPress={() => router.push('/rate')}
+            right={<Icon name="right" size={18} color={c.ink3} />}
+          />
+          <Row
+            icon="download"
+            label={update ? `Version ${update.version} is out` : 'Updates'}
+            hint={update ? 'See what’s new and download it' : `You have the latest version${appVersion() ? ` (${appVersion()})` : ''}`}
+            onPress={update ? () => setUpdateOpen(true) : undefined}
+            right={update ? <View style={[styles.dot, { backgroundColor: c.lime }]} /> : undefined}
+          />
         </Group>
 
         <Enter index={i++} style={[styles.group, { backgroundColor: c.surface }]}>
@@ -328,6 +361,9 @@ export default function Settings() {
         </Txt>
       </KeyboardAwareScrollView>
       <KeyboardBar />
+
+      {csv.sheet}
+      <UpdateSheet update={update} visible={updateOpen} onClose={() => setUpdateOpen(false)} />
 
       <Sheet visible={confirmReset} onClose={() => !resetting && setConfirmReset(false)} title="Delete all data?">
         <Txt variant="body" color="ink2">
@@ -350,6 +386,7 @@ const styles = StyleSheet.create({
   badge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   group: { borderRadius: Radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
   rowIc: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowCol: { gap: 8, padding: 14, borderTopWidth: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },

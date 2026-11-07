@@ -12,6 +12,7 @@ import { EmptyState, Screen, SectionHead } from '@/components/screen';
 import { SurplusSheet } from '@/components/surplus-sheet';
 import { Txt } from '@/components/txt';
 import { TxRow } from '@/components/tx-row';
+import { UpdateSheet } from '@/components/update-sheet';
 import { ListReflow, RowEnter, RowExit } from '@/constants/motion';
 import { displayType, Fonts, Radius } from '@/constants/theme';
 import { useAccount } from '@/data/account';
@@ -26,6 +27,7 @@ import { formatMoney, greeting, ordinal } from '@/lib/format';
 import { dueLabel } from '@/lib/recurring';
 import { heroData, monthRange, splitByCategory } from '@/lib/stats';
 import { suggestSaving } from '@/lib/suggest';
+import { useUpdate } from '@/lib/update-check';
 
 export default function Home() {
   const c = useColors();
@@ -38,6 +40,10 @@ export default function Home() {
   const tip = useMemo(() => suggestSaving(transactions, p), [transactions, p]);
   const showTip = !!tip && !alloc.tipDismissed && (goals.length === 0 || alloc.saved === 0);
   const [assigning, setAssigning] = useState(false);
+  const update = useUpdate();
+  const [updateOpen, setUpdateOpen] = useState(false);
+  // Hidden for this session only; it comes back next launch until they update.
+  const [updateDismissed, setUpdateDismissed] = useState(false);
   // Logging income above the budget (askSurplus) opens the sheet straight away.
   const surplusOpen = (assigning || askSurplus) && surplus > 0;
   const closeSurplus = () => {
@@ -113,6 +119,29 @@ export default function Home() {
             <Txt variant="smallBold" color={c.onAccent}>
               Log {st.word.toLowerCase()}
             </Txt>
+          </PressableScale>
+        </Enter>
+      )}
+
+      {update && !updateDismissed && (
+        <Enter index={i++}>
+          <PressableScale
+            role="button"
+            aria-label={`Version ${update.version} is out. See what’s new`}
+            onPress={() => setUpdateOpen(true)}
+            style={[styles.banner, { backgroundColor: c.accentSoft }]}>
+            <Icon name="download" size={20} color={c.accentInk} />
+            <View style={{ flex: 1 }}>
+              <Txt variant="smallBold" color={c.accentInk}>
+                Daily Strip {update.version} is out
+              </Txt>
+              <Txt variant="caption" color={c.accentInk}>
+                See what’s new and update.
+              </Txt>
+            </View>
+            <Pressable role="button" aria-label="Hide" hitSlop={10} onPress={() => setUpdateDismissed(true)}>
+              <Icon name="close" size={18} color={c.accentInk} />
+            </Pressable>
           </PressableScale>
         </Enter>
       )}
@@ -303,6 +332,7 @@ export default function Home() {
       )}
 
       <SurplusSheet visible={surplusOpen} amount={surplus} onClose={closeSurplus} />
+      <UpdateSheet update={update} visible={updateOpen} onClose={() => setUpdateOpen(false)} />
     </Screen>
   );
 }
