@@ -98,10 +98,6 @@ export default function Add() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  // Sized from the screen height so the whole page fits without scrolling, on short
-  // phones and with large display/font settings. The keypad takes whatever is left.
-  const { height } = useWindowDimensions();
-  const k = Math.min(1, Math.max(0.68, height / 820));
   const keyboardOpen = useKeyboardState((s) => s.isVisible);
   const params = useLocalSearchParams<{ id?: string; type?: string; amount?: string; cat?: string; note?: string; planId?: string }>();
   const { plans } = usePlans();
@@ -161,6 +157,29 @@ export default function Add() {
   const placeholder = categoryInfo(cat).name;
   const isToday = sameDay(date, new Date());
   const isYesterday = sameDay(date, addDays(new Date(), -1));
+  // Fit to this device: measure the space the content really gets (after the status bar,
+  // the pinned button and the navigation bar) and scale spacing, type and keys to it.
+  // Large font settings make text taller, so they shrink the rest to compensate.
+  // If it still doesn't fit, the content scrolls instead of being cut off.
+  const { height, fontScale } = useWindowDimensions();
+  const [viewportH, setViewportH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const showPlans = type === 'expense' && planChoices.length > 0;
+  // Natural content height at full size (k = 1), measured: about 700 plus the plan row.
+  const designH = 700 + (showPlans ? 70 : 0);
+  const space = viewportH || height - insets.top - insets.bottom - 90;
+  // `fit` corrects the estimate on this device: if the content still overflows after
+  // layout, it shrinks a step and re-measures until everything fits (or k hits its floor).
+  // A new size (rotation, split screen) or a row appearing starts the fit again.
+  const fitKey = `${viewportH}|${showPlans}|${incomeOn}`;
+  const [fitState, setFitState] = useState({ key: fitKey, f: 1 });
+  const fit = fitState.key === fitKey ? fitState.f : 1;
+  const k = Math.min(1, Math.max(0.6, (fit * space) / designH / Math.min(1.3, Math.max(1, fontScale))));
+  const overflows = viewportH > 0 && contentH > viewportH + 1;
+  function refit(view: number, content: number) {
+    if (!view || content <= view + 1 || keyboardOpen || k <= 0.6) return;
+    setFitState({ key: `${view}|${showPlans}|${incomeOn}`, f: (view === viewportH ? fit : 1) * Math.max(0.85, (view / content) ** 1.6) });
+  }
   const title = editing ? (type === 'income' ? `Edit ${st.word.toLowerCase()}` : 'Edit expense') : type === 'income' ? `Add ${st.word.toLowerCase()}` : 'Add expense';
 
   function changeType(t: TxType) {
@@ -207,11 +226,22 @@ export default function Add() {
     <View style={[styles.fill, { backgroundColor: c.sheet, paddingTop: insets.top + 8 }]}>
       <KeyboardAwareScrollView
         bottomOffset={62}
-        scrollEnabled={keyboardOpen}
+        scrollEnabled={keyboardOpen || overflows}
         bounces={false}
         overScrollMode="never"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { gap: Math.max(8, Math.round(14 * k)), paddingBottom: Math.max(16, insets.bottom + 10) }]}
+        showsVerticalScrollIndicator={overflows}
+        onLayout={(e) => {
+          const h = Math.round(e.nativeEvent.layout.height);
+          setViewportH(h);
+          refit(h, contentH);
+        }}
+        onContentSizeChange={(_, ch) => {
+          const h = Math.round(ch);
+          setContentH(h);
+          refit(viewportH, h);
+        }}
+        style={styles.fill}
+        contentContainerStyle={[styles.content, { gap: Math.max(8, Math.round(14 * k)), paddingBottom: Math.max(8, Math.round(12 * k)) }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.head}>
           <Txt variant="name" style={[{ flex: 1 }, displayType(Math.max(26, Math.round(32 * k)))]} role="heading">
@@ -288,7 +318,7 @@ export default function Add() {
           <TextInput maxFontSizeMultiplier={1.2} value={note} onChangeText={setNote} maxLength={60} placeholder={placeholder} placeholderTextColor={c.ink3} aria-label="Note" style={[styles.noteInput, { color: c.ink }]} />
         </View>
 
-        {type === 'expense' && planChoices.length > 0 && (
+        {showPlans && (
           <View style={{ gap: 6 }}>
             <Txt variant="smallSemi" color="ink2">
               Part of a plan?
@@ -314,12 +344,15 @@ export default function Add() {
           {KeyRows.map((row) => (
             <View key={row.join('')} style={styles.keyRow}>
               {row.map((key) => (
-                <Key key={key} k={key} height={Math.max(44, Math.round(54 * k))} onPress={() => press(key)} />
+                <Key key={key} k={key} height={Math.max(40, Math.round(54 * k))} onPress={() => press(key)} />
               ))}
             </View>
           ))}
         </View>
+      </KeyboardAwareScrollView>
 
+      {/* Pinned under the scroll area so it is always on screen and tappable. */}
+      <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom + 10) }]}>
         {saved ? (
           <Animated.View entering={reduced ? undefined : ZoomIn.springify().damping(12)} style={[styles.done, { backgroundColor: c.pos }]}>
             <Icon name="check" size={22} color={c.white} strokeWidth={2.6} />
@@ -330,7 +363,7 @@ export default function Add() {
         ) : (
           <PrimaryButton label={editing ? 'Save changes' : type === 'income' ? `Add ${st.word.toLowerCase()}` : 'Add expense'} disabled={!(value > 0)} onPress={save} />
         )}
-      </KeyboardAwareScrollView>
+      </View>
       <KeyboardBar />
       <DateSheet visible={picking} value={startOfDay(date)} onClose={() => setPicking(false)} onPick={pickDay} />
     </View>
@@ -342,6 +375,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: Gutter, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52 },
   miniLink: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 38, paddingHorizontal: 14, borderRadius: 99 },
+  footer: { paddingHorizontal: Gutter, paddingTop: 8, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   amountRow: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 4 },
   amount: { maxWidth: '78%' },
   caret: { width: 4, borderRadius: 2 },
@@ -355,8 +389,9 @@ const styles = StyleSheet.create({
   noteInput: { flex: 1, minWidth: 0, fontFamily: Fonts.medium, fontSize: 16, paddingVertical: 10 },
   dates: { flexDirection: 'row', gap: 8 },
   // Rows start at the key's min height and grow into spare space, up to 76pt each.
-  keypad: { flexGrow: 1, gap: 8, justifyContent: 'flex-end' },
-  keyRow: { flexGrow: 1, maxHeight: 76, flexDirection: 'row', gap: 8 },
+  // The keypad takes the larger share of spare height so tall phones don't get a gap above it.
+  keypad: { flexGrow: 2, gap: 8, justifyContent: 'flex-end' },
+  keyRow: { flexGrow: 1, flexShrink: 1, maxHeight: 76, flexDirection: 'row', gap: 8 },
   keyWrap: { flex: 1 },
   key: { flexGrow: 1, borderRadius: Radius.key, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontFamily: Fonts.semiBold, fontSize: 24, lineHeight: 28 },
