@@ -29,7 +29,7 @@ import { useColors } from '@/hooks/use-colors';
 import { useProfile } from '@/hooks/use-profile';
 import { exportCsv } from '@/lib/csv';
 import { ordinal } from '@/lib/format';
-import { useUpdate } from '@/lib/update-check';
+import { checkForUpdate, useUpdate } from '@/lib/update-check';
 
 function Group({ title, children, index }: { title: string; children: ReactNode; index: number }) {
   const c = useColors();
@@ -121,10 +121,22 @@ export default function Settings() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
   const { review: myReview } = useMyReview();
   const update = useUpdate();
   const word = st.word.toLowerCase();
   const setCount = Object.values(p.catBudgets).filter((v) => (v ?? 0) > 0).length;
+
+  async function onUpdates() {
+    if (update) return setUpdateOpen(true);
+    if (checking) return;
+    setChecking(true);
+    const result = await checkForUpdate();
+    setChecking(false);
+    if (result === 'update') setUpdateOpen(true);
+    else if (result === 'latest') showToast(`You’re on the latest version${appVersion() ? ` (${appVersion()})` : ''}`);
+    else showToast('Couldn’t check. Check your connection.');
+  }
 
   const save = (changes: Parameters<typeof updateProfile>[0], message = 'Saved') => {
     updateProfile(changes).then(() => showToast(message), () => showToast('Couldn’t save. Check your connection.'));
@@ -346,8 +358,14 @@ export default function Settings() {
           <Row
             icon="download"
             label={update ? `Version ${update.version} is out` : 'Updates'}
-            hint={update ? 'See what’s new and download it' : `You have the latest version${appVersion() ? ` (${appVersion()})` : ''}`}
-            onPress={update ? () => setUpdateOpen(true) : undefined}
+            hint={
+              update
+                ? 'See what’s new and download it'
+                : checking
+                  ? 'Checking…'
+                  : `${appVersion() ? `Version ${appVersion()} · ` : ''}Tap to check for updates`
+            }
+            onPress={onUpdates}
             right={update ? <View style={[styles.dot, { backgroundColor: c.lime }]} /> : undefined}
           />
         </Group>

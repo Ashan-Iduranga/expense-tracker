@@ -10,7 +10,7 @@ This guide explains how users get new versions of the app, and what to do **ever
  You                          GitHub (public repo)                 User's phone
  ───                          ────────────────────                 ────────────
  1. Build a new APK  ───────►  2. Release "v1.2.0"
-                                  + daily-strip.apk  ◄──────────  3. App checks once a day:
+                                  + daily-strip.apk  ◄──────────  3. App checks on every open:
                                                                      "is there a newer version?"
                                                                   4. Banner on Home:
                                                                      "Daily Strip 1.2.0 is out"
@@ -110,7 +110,7 @@ gh release create v1.2.0 daily-strip.apk --repo Ashan-Iduranga/daily-strip-relea
 
 ### Step 9: Check it worked
 - Open https://github.com/Ashan-Iduranga/daily-strip-releases/releases/latest/download/daily-strip.apk in a browser. It should start downloading the APK.
-- On your phone, users see the update **within 24 hours** of opening the app. The app checks once a day.
+- On your phone, users see the update the next time they open the app (from 1.1.2 on). Settings → Updates → tap to check right away.
 - **To see it right now (testing only):** make sure the phone is **online and the app has synced**, then go to phone **Settings → Apps → Daily Strip → Storage → Clear storage**, and open the app again. You'll sign in again, and your data comes back from your account. (Don't do this while offline: changes not yet synced would be lost.)
 - Tap the banner → **Update** → wait for the download → **Install**. The app reopens on the new version.
 
@@ -133,7 +133,7 @@ After that, every new version arrives inside the app.
 | Problem | What it means | Fix |
 |---|---|---|
 | **"App not installed"** / "conflicts with an existing package" | The new APK has a lower build number, or a different signing key | Always build with `--profile preview` on EAS (same key, build number goes up). Never install a build made another way over it |
-| **No update banner** | Tag doesn't match, release is a draft or pre-release, or the phone checked less than 24h ago | Check the tag is `v` + app.json version and is higher than the phone's version. Wait a day, or see Step 9 |
+| **No update banner** | Tag doesn't match, or release is a draft or pre-release. (Phones on 1.1.1 or older also keep a 24h cache) | Check the tag is `v` + app.json version and is higher than the phone's version. Tap Settings → Updates to check now. On 1.1.1 or older, wait a day or see Step 9 |
 | **"Couldn't download the update"** | No internet, or the file isn't named `daily-strip.apk` | Check the asset name on the release page. Edit the release and re-upload the file with the right name |
 | **Android says installs from Daily Strip aren't allowed** | First update on that phone | Tap **Settings** on that message → turn on **Allow from this source** → go back → **Install** |
 | **"Couldn't save" after updating** | New Firestore field, rules not deployed | Do Step 3 |
@@ -146,7 +146,7 @@ After that, every new version arrives inside the app.
 | File | What it does |
 |---|---|
 | `src/constants/release.ts` | Which GitHub repo the app checks |
-| `src/lib/update-check.ts` | Checks for a newer version once a day |
+| `src/lib/update-check.ts` | Checks for a newer version on launch, on return after 1h, and on tap in Settings |
 | `src/lib/apk-install.ts` | Downloads the APK and opens Android's installer |
 | `src/components/update-sheet.tsx` | The update sheet (notes, progress bar, Install button) |
 | `eas.json` → `preview` | Builds an APK and raises the build number automatically |
