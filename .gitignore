@@ -52,3 +52,6 @@ firestore-debug.log
 
 # EAS iOS simulator builds
 ios-builds/
+
+# Daily Strip AI: receipt photos, truth file and notes stay off the repo
+private/
